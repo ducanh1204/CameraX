@@ -3,12 +3,16 @@ package com.example.camerax;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.AspectRatio;
+import androidx.camera.core.Camera;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.CameraX;
+import androidx.camera.core.FocusMeteringAction;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageCapture;
 import androidx.camera.core.ImageCaptureException;
+import androidx.camera.core.MeteringPoint;
 import androidx.camera.core.Preview;
+import androidx.camera.core.SurfaceOrientedMeteringPointFactory;
 import androidx.camera.extensions.HdrImageCaptureExtender;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
@@ -21,6 +25,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
+import android.hardware.camera2.CaptureRequest;
 import android.media.ExifInterface;
 import android.media.ImageReader;
 import android.os.Bundle;
@@ -48,6 +53,7 @@ import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
     private int screenWidth = 0;
@@ -81,7 +87,7 @@ public class MainActivity extends AppCompatActivity {
     private final String[] REQUIRED_PERMISSIONS = new String[]{"android.permission.CAMERA", "android.permission.WRITE_EXTERNAL_STORAGE"};
 
     PreviewView mPreviewView;
-    Button btnTakePhoto,btnShowCamera;
+    Button btnTakePhoto, btnShowCamera;
     ImageView img;
     ImageCapture imageCapture;
 
@@ -89,18 +95,17 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
         mPreviewView = findViewById(R.id.previewView);
-        mPreviewView.getLayoutParams().width = getSizeWithScale(1020);
-        mPreviewView.getLayoutParams().height = getSizeWithScale(648);
+//        mPreviewView.getLayoutParams().width = getSizeWithScale(1020);
+//        mPreviewView.getLayoutParams().height = getSizeWithScale(648);
         img = findViewById(R.id.img);
         btnTakePhoto = findViewById(R.id.btn_take_photo);
         btnShowCamera = findViewById(R.id.btn_show_cam);
-//        if (allPermissionsGranted()) {
-//            startCamera();
-//        } else {
-//            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS);
-//        }
+        if (allPermissionsGranted()) {
+            startCamera();
+        } else {
+            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS);
+        }
         btnShowCamera.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -112,8 +117,8 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 File file = new File(getBatchDirectoryName(), "image" + ".jpg");
                 ImageCapture.OutputFileOptions outputFileOptions = new ImageCapture.OutputFileOptions.Builder(file).build();
-                Log.e("a",imageCapture+"");
-                if(imageCapture==null) return;
+                Log.e("a", imageCapture + "");
+                if (imageCapture == null) return;
                 imageCapture.takePicture(outputFileOptions, executor, new ImageCapture.OnImageSavedCallback() {
                     @Override
                     public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
@@ -205,11 +210,25 @@ public class MainActivity extends AppCompatActivity {
         if (hdrImageCaptureExtender.isExtensionAvailable(cameraSelector)) {
             hdrImageCaptureExtender.enableExtension(cameraSelector);
         }
+
         imageCapture = builder
                 .setTargetRotation(this.getWindowManager().getDefaultDisplay().getRotation())
                 .build();
         preview.setSurfaceProvider(mPreviewView.createSurfaceProvider());
-        cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis, imageCapture);
+
+        SurfaceOrientedMeteringPointFactory surBuilder = new SurfaceOrientedMeteringPointFactory(1f, 1f);
+        MeteringPoint meteringPoint = surBuilder.createPoint(5f, 5f);
+
+//        FocusMeteringAction.Builder fBuilder = new FocusMeteringAction.Builder(meteringPoint,
+//                FocusMeteringAction.FLAG_AF).setAutoCancelDuration(300, TimeUnit.MICROSECONDS);
+//        FocusMeteringAction a =  fBuilder.build();
+
+        FocusMeteringAction.Builder fBuilder = new FocusMeteringAction.Builder(meteringPoint,
+                FocusMeteringAction.FLAG_AF).setAutoCancelDuration(10,TimeUnit.SECONDS);
+        FocusMeteringAction a = fBuilder.build();
+
+        Camera camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis, imageCapture);
+        camera.getCameraControl().startFocusAndMetering(a);
     }
 
     public String getBatchDirectoryName() {
